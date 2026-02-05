@@ -85,6 +85,13 @@
             font-weight: 600;
             cursor: pointer;
             transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        button:active {
+            transform: scale(0.95);
         }
 
         .btn-join {
@@ -94,7 +101,6 @@
 
         .btn-join:hover {
             background-color: #2563eb;
-            transform: translateY(-2px);
         }
 
         .btn-leave {
@@ -104,7 +110,49 @@
 
         .btn-leave:hover {
             background-color: #dc2626;
-            transform: translateY(-2px);
+        }
+
+        .btn-control {
+            background-color: rgba(255, 255, 255, 0.2);
+            color: white;
+        }
+
+        .btn-control:hover {
+            background-color: rgba(255, 255, 255, 0.3);
+        }
+
+        .btn-control.off {
+            background-color: #ef4444;
+            /* Red when off */
+            color: white;
+        }
+
+        /* Input Styling */
+        .join-wrapper {
+            display: flex;
+            gap: 10px;
+        }
+
+        #channel-input {
+            padding: 12px 20px;
+            border-radius: 25px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            background: rgba(0, 0, 0, 0.3);
+            color: white;
+            font-size: 16px;
+            outline: none;
+            width: 200px;
+            transition: border-color 0.2s;
+        }
+
+        #channel-input:focus {
+            border-color: var(--primary-color);
+        }
+
+        /* Hide active controls initially */
+        #active-controls {
+            display: none;
+            gap: 10px;
         }
     </style>
 </head>
@@ -118,49 +166,52 @@
     </div>
 
     <div class="controls">
-        <button class="btn-join" onclick="join()">Join Call</button>
-        <button class="btn-leave" onclick="leave()">Leave Call</button>
+        <div id="join-controls" class="join-wrapper">
+            <h2>Tạo / Tham gia phòng</h2>
+            <input type="text" id="channel-input" placeholder="Enter Channel Name" value="demo" />
+            <button id="btn-join" class="btn-join" onclick="join()">Join Call</button>
+        </div>
+
+        <div id="active-controls">
+            <button id="btn-mic" class="btn-control" onclick="toggleMic()">🎤 Mic On</button>
+            <button id="btn-cam" class="btn-control" onclick="toggleCam()">📷 Cam On</button>
+            <button id="btn-leave" class="btn-leave" onclick="leave()">Leave Call</button>
+        </div>
     </div>
 
     <script>
         const APP_ID = "89681676154f4c36b529af2c7db9c1d4";
-        const CHANNEL = "demo";
 
         let client;
-        let localTracks = [];
+        let localTracks = {
+            audio: null,
+            video: null
+        };
 
         async function join() {
+            const channelName = document.getElementById("channel-input").value;
+            if (!channelName) {
+                alert("Please enter a channel name");
+                return;
+            }
+
             // Prevent multiple joins
             if (client && client.connectionState === 'CONNECTED') return;
 
             client = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
 
-            try {
-                await client.join(APP_ID, CHANNEL, null, null);
-                localTracks = await AgoraRTC.createMicrophoneAndCameraTracks();
-
-                // Create local player container
-                const localPlayerDiv = document.createElement("div");
-                localPlayerDiv.id = "local-player";
-                localPlayerDiv.className = "video";
-                document.getElementById("videos").prepend(localPlayerDiv); // Add local to start
-
-                localTracks[1].play(localPlayerDiv);
-                await client.publish(localTracks);
-
-                console.log("Successfully joined!");
-            } catch (error) {
-                console.error("Error joining call:", error);
-            }
-
+            // Event listeners must be setup BEFORE joining
             client.on("user-published", async (user, mediaType) => {
                 await client.subscribe(user, mediaType);
 
                 if (mediaType === "video") {
-                    const remoteDiv = document.createElement("div");
-                    remoteDiv.id = user.uid;
-                    remoteDiv.className = "video";
-                    document.getElementById("videos").append(remoteDiv);
+                    let remoteDiv = document.getElementById(user.uid);
+                    if (!remoteDiv) {
+                        remoteDiv = document.createElement("div");
+                        remoteDiv.id = user.uid;
+                        remoteDiv.className = "video";
+                        document.getElementById("videos").append(remoteDiv);
+                    }
                     user.videoTrack.play(remoteDiv);
                 }
 
@@ -175,20 +226,86 @@
                     playerContainer.remove();
                 }
             });
+
+            try {
+                await client.join(APP_ID, channelName, null, null);
+
+                // Create tracks
+                const tracks = await AgoraRTC.createMicrophoneAndCameraTracks();
+                localTracks.audio = tracks[0];
+                localTracks.video = tracks[1];
+
+                // Create local player container if it doesn't exist
+                if (!document.getElementById("local-player")) {
+                    const localPlayerDiv = document.createElement("div");
+                    localPlayerDiv.id = "local-player";
+                    localPlayerDiv.className = "video";
+                    document.getElementById("videos").prepend(localPlayerDiv);
+                    localTracks.video.play(localPlayerDiv);
+                }
+
+                await client.publish(Object.values(localTracks));
+                console.log("Successfully joined!");
+
+                // Toggle visibility
+                document.getElementById("join-controls").style.display = "none";
+                document.getElementById("active-controls").style.display = "flex";
+
+            } catch (error) {
+                console.error("Error joining call:", error);
+            }
         }
 
         async function leave() {
             if (!client) return;
 
-            for (let track of localTracks) {
-                track.stop();
-                track.close();
+            // Stop and close tracks
+            if (localTracks.audio) {
+                localTracks.audio.stop();
+                localTracks.audio.close();
             }
-            localTracks = [];
+            if (localTracks.video) {
+                localTracks.video.stop();
+                localTracks.video.close();
+            }
+            localTracks = { audio: null, video: null };
 
             await client.leave();
             document.getElementById("videos").innerHTML = ''; // Clear all videos
             console.log("Left the call.");
+
+            // Reset UI
+            document.getElementById("join-controls").style.display = "flex";
+            document.getElementById("active-controls").style.display = "none";
+
+            // Reset button states
+            updateButtonState("btn-mic", true, "🎤 Mic On", "🎤 Mic Off");
+            updateButtonState("btn-cam", true, "📷 Cam On", "📷 Cam Off");
+        }
+
+        async function toggleMic() {
+            if (!localTracks.audio) return;
+            const isMuted = localTracks.audio.muted;
+            await localTracks.audio.setMuted(!isMuted);
+            updateButtonState("btn-mic", isMuted, "🎤 Mic On", "🎤 Mic Off");
+        }
+
+        async function toggleCam() {
+            if (!localTracks.video) return;
+            const isMuted = localTracks.video.muted;
+            await localTracks.video.setMuted(!isMuted);
+            updateButtonState("btn-cam", isMuted, "📷 Cam On", "📷 Cam Off");
+        }
+
+        function updateButtonState(btnId, isEnabled, textOn, textOff) {
+            const btn = document.getElementById(btnId);
+            if (isEnabled) {
+                btn.innerText = textOn;
+                btn.classList.remove("off");
+            } else {
+                btn.innerText = textOff;
+                btn.classList.add("off");
+            }
         }
     </script>
 
