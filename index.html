@@ -154,27 +154,94 @@
             display: none;
             gap: 10px;
         }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            h2 {
+                margin-top: 10px;
+                font-size: 1.2rem;
+            }
+
+            #videos {
+                width: 95%;
+                height: 60vh;
+                margin: 10px 0;
+                grid-template-columns: repeat(2, 1fr);
+                /* Two columns on mobile */
+                gap: 10px;
+            }
+
+            .controls {
+                width: 95%;
+                padding: 15px;
+                bottom: 20px;
+                flex-direction: row;
+                gap: 10px;
+                border-radius: 20px;
+            }
+
+            .join-wrapper {
+                flex-direction: column;
+                width: 100%;
+                gap: 10px;
+            }
+
+            #active-controls {
+                flex-direction: row;
+                width: 100%;
+                gap: 8px;
+            }
+
+            #channel-input {
+                width: 100%;
+                /* Full width input */
+                box-sizing: border-box;
+            }
+
+            /* Join button full width */
+            .join-wrapper button {
+                width: 100%;
+                justify-content: center;
+                padding: 12px;
+            }
+
+            /* Active control buttons share space */
+            #active-controls button {
+                width: auto;
+                flex: 1;
+                /* Distribute space equally */
+                justify-content: center;
+                padding: 10px 5px;
+                /* Reduce horizontal padding */
+                font-size: 14px;
+                /* Slightly smaller text */
+            }
+        }
     </style>
 </head>
 
 <body>
 
     <h2>📹 Agora Video Call</h2>
+    <div id="room-name-display" style="display: none; color: var(--primary-color);">
+        <!-- Channel name will be shown here -->
+    </div>
 
     <div id="videos">
         <!-- Local player will be appended here -->
     </div>
 
+
     <div class="controls">
         <div id="join-controls" class="join-wrapper">
             <h2>Tạo / Tham gia phòng</h2>
-            <input type="text" id="channel-input" placeholder="Enter Channel Name" value="demo" />
+            <input type="text" id="channel-input" placeholder="Enter Room Name" value="demo" />
             <button id="btn-join" class="btn-join" onclick="join()">Join Call</button>
         </div>
 
         <div id="active-controls">
-            <button id="btn-mic" class="btn-control" onclick="toggleMic()">🎤 Mic On</button>
-            <button id="btn-cam" class="btn-control" onclick="toggleCam()">📷 Cam On</button>
+            <button id="btn-mic" class="btn-control" onclick="toggleMic()">🎤 Micro On</button>
+            <button id="btn-cam" class="btn-control" onclick="toggleCam()">📷 Camera On</button>
             <button id="btn-leave" class="btn-leave" onclick="leave()">Leave Call</button>
         </div>
     </div>
@@ -251,6 +318,11 @@
                 document.getElementById("join-controls").style.display = "none";
                 document.getElementById("active-controls").style.display = "flex";
 
+                // Show Channel Name
+                const roomDisplay = document.getElementById("room-name-display");
+                roomDisplay.innerHTML = `<h5>Room: ${channelName}</h5>`;
+                roomDisplay.style.display = "block";
+
             } catch (error) {
                 console.error("Error joining call:", error);
             }
@@ -277,24 +349,25 @@
             // Reset UI
             document.getElementById("join-controls").style.display = "flex";
             document.getElementById("active-controls").style.display = "none";
+            document.getElementById("room-name-display").style.display = "none"; // Hide Room Name
 
             // Reset button states
-            updateButtonState("btn-mic", true, "🎤 Mic On", "🎤 Mic Off");
-            updateButtonState("btn-cam", true, "📷 Cam On", "📷 Cam Off");
+            updateButtonState("btn-mic", true, "🎤 Micro On", "🎤 Micro Off");
+            updateButtonState("btn-cam", true, "📷 Camera On", "📷 Camera Off");
         }
 
         async function toggleMic() {
             if (!localTracks.audio) return;
             const isMuted = localTracks.audio.muted;
             await localTracks.audio.setMuted(!isMuted);
-            updateButtonState("btn-mic", isMuted, "🎤 Mic On", "🎤 Mic Off");
+            updateButtonState("btn-mic", isMuted, "🎤 Micro On", "🎤 Micro Off");
         }
 
         async function toggleCam() {
             if (!localTracks.video) return;
             const isMuted = localTracks.video.muted;
             await localTracks.video.setMuted(!isMuted);
-            updateButtonState("btn-cam", isMuted, "📷 Cam On", "📷 Cam Off");
+            updateButtonState("btn-cam", isMuted, "📷 Camera On", "📷 Camera Off");
         }
 
         function updateButtonState(btnId, isEnabled, textOn, textOff) {
